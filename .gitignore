@@ -36,6 +36,3 @@ Thumbs.db
 
 # Generated SpacetimeDB bindings (regenerate with: npm run spacetime:generate)
 src/module_bindings/
-
-# Ignore puzzles folder
-src/puzzles/

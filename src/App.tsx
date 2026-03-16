@@ -1,23 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from './module_bindings';
-import { parseXBS } from './parser';
+import { parseSokFile, parseXBS } from './parser';
 import { Direction } from './sokoban';
 import { XBSView } from './XBSView';
+import microbanSok from './puzzles/DavidWSkinner Microban.sok?raw';
 
-const UNDO_KEY = 'd';
-
+const UNDO_KEY = 'q';
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-function generatePlayerCode(): string {
-  let code = '';
-  for (let i = 0; i < 8; i++) {
-    code += CHARS[Math.floor(Math.random() * CHARS.length)];
-  }
-  return code;
-}
-
-/** 7×7 default puzzle: push the box right twice to solve. */
 const DEFAULT_PUZZLE = [
   '#######',
   '#     #',
@@ -27,6 +17,35 @@ const DEFAULT_PUZZLE = [
   '#     #',
   '#######',
 ].join('\n');
+
+/** Level puzzles; index matches levelIndices. parseSokFile expects file content, not a path. */
+const LEVEL_PUZZLES = parseSokFile(microbanSok);
+// const LEVEL_PUZZLES = [DEFAULT_PUZZLE, DEFAULT_PUZZLE, DEFAULT_PUZZLE];
+function getLevelPuzzle(levelIndex: number): string {
+  return LEVEL_PUZZLES[levelIndex];
+}
+
+const ARROW_DIR: Record<string, Direction> = {
+  ArrowLeft: Direction.Left,
+  ArrowRight: Direction.Right,
+  ArrowUp: Direction.Up,
+  ArrowDown: Direction.Down,
+};
+
+enum MatchState {
+  WAITING = 'WAITING',
+  PLAYING = 'PLAYING',
+}
+
+const WINNER_PLAYER1 = 1;
+const WINNER_PLAYER2 = 2;
+
+const CODE_LENGTH = 8;
+function generatePlayerCode(): string {
+  let code = '';
+  for (let i = 0; i < CODE_LENGTH; i++) code += CHARS[Math.floor(Math.random() * CHARS.length)];
+  return code;
+}
 
 enum PlayerRole {
   Player1 = 'Player1',
@@ -38,93 +57,124 @@ function App() {
   const [games] = useTable(tables.game);
   const registerGameCode = useReducer(reducers.registerGameCode);
   const updatePlayerState = useReducer(reducers.updatePlayerState);
+  const claimWinner = useReducer(reducers.claimWinner);
   const [playerCode] = useState(generatePlayerCode);
-  const [joinCode, setJoinCode] = useState('');
-  const [role, setRole] = useState<PlayerRole>(PlayerRole.Player1);
+  const [joinInput, setJoinInput] = useState('');
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [joinedGameCode, setJoinedGameCode] = useState<string | null>(null);
+  const [localLevelIndex, setLocalLevelIndex] = useState(0);
+  const joinInputRef = useRef<HTMLInputElement>(null);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
 
-  const currentGameCode = role === PlayerRole.Player1 ? playerCode : joinedGameCode ?? '';
+  const currentGameCode = useMemo(() => joinedGameCode ?? playerCode, [joinedGameCode, playerCode]);
+  const isPlayer1 = useMemo(() => joinedGameCode === null, [joinedGameCode]);
   const currentGame = useMemo(
     () => (games && currentGameCode ? games.find(g => g.code === currentGameCode) : undefined),
     [games, currentGameCode]
   );
 
+  const matchState = currentGame?.started ? MatchState.PLAYING : MatchState.WAITING;
+  const levelIndices = currentGame?.levelIndices ?? [];
+  const winner = currentGame?.winner ?? 0;
+
+  useEffect(() => {
+    if (matchState === MatchState.PLAYING) {
+      setLocalLevelIndex(0);
+      gameAreaRef.current?.focus();
+    }
+  }, [matchState]);
+
   const playerSokobanRef = useRef(parseXBS(DEFAULT_PUZZLE));
-  const lastGameKeyRef = useRef<string>('');
-  // Only re-init Sokoban when we switch game or role, so undo history is preserved after each move
-  const gameKey = `${currentGameCode}-${role}`;
-  if (lastGameKeyRef.current !== gameKey) {
-    lastGameKeyRef.current = gameKey;
+  const initKey =
+    matchState === MatchState.PLAYING
+      ? `${currentGameCode}-${localLevelIndex}`
+      : `${currentGameCode}-w`;
+
+  useEffect(() => {
     const initial =
-      role === PlayerRole.Player1
-        ? (currentGame?.player1State ?? DEFAULT_PUZZLE)
-        : (currentGame?.player2State ?? DEFAULT_PUZZLE);
+      matchState === MatchState.PLAYING
+        ? getLevelPuzzle(levelIndices[localLevelIndex] ?? 0)
+        : (isPlayer1 ? currentGame?.player1State : currentGame?.player2State) ?? DEFAULT_PUZZLE;
     playerSokobanRef.current = parseXBS(initial);
-  }
+    // Only re-init when initKey changes (new level or WAITING↔PLAYING). Don't re-run on
+    // server state updates or we wipe undo history every move.
+  }, [initKey]);
+
   const [playerXBS, setPlayerXBS] = useState(() => playerSokobanRef.current.getState()[0]);
   const opponentXBS = useMemo(
     () =>
-      role === PlayerRole.Player1
+      isPlayer1
         ? (currentGame?.player2State ?? DEFAULT_PUZZLE)
         : (currentGame?.player1State ?? DEFAULT_PUZZLE),
-    [role, currentGame?.player1State, currentGame?.player2State]
+    [isPlayer1, currentGame?.player2State, currentGame?.player1State]
   );
 
   useEffect(() => {
     setPlayerXBS(playerSokobanRef.current.getState()[0]);
-  }, [gameKey]);
+  }, [initKey]);
 
   useEffect(() => {
-    if (conn?.isActive) {
-      registerGameCode({ code: playerCode });
-    }
+    if (conn?.isActive) registerGameCode({ code: playerCode });
   }, [conn?.isActive, playerCode, registerGameCode]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (!currentGameCode) return;
-      const target = document.activeElement as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
-      const sokoban = playerSokobanRef.current;
-      let didChange = false;
-      if (e.key === 'ArrowLeft') {
-        didChange = sokoban.tryMove(Direction.Left);
-      } else if (e.key === 'ArrowRight') {
-        didChange = sokoban.tryMove(Direction.Right);
-      } else if (e.key === 'ArrowUp') {
-        didChange = sokoban.tryMove(Direction.Up);
-      } else if (e.key === 'ArrowDown') {
-        didChange = sokoban.tryMove(Direction.Down);
-      } else if (e.key.toLowerCase() === UNDO_KEY) {
-        didChange = sokoban.undo();
-      } else {
-        return;
-      }
+      const isUndo = e.key.toLowerCase() === UNDO_KEY;
+      if (!isUndo && !e.key.includes('Arrow')) return;
+      const dir = ARROW_DIR[e.key];
+
       e.preventDefault();
+      const sokoban = playerSokobanRef.current;
+      const didChange = isUndo ? sokoban.undo() : sokoban.tryMove(dir);
+
       if (!didChange) return;
-      setPlayerXBS(sokoban.getState()[0]);
       const [xbs, isWon] = sokoban.getState();
+      setPlayerXBS(xbs);
+
+      if (matchState === MatchState.PLAYING && isWon) {
+        if (localLevelIndex + 1 < levelIndices.length) {
+          setLocalLevelIndex(i => i + 1);
+        } else {
+          claimWinner({ code: currentGameCode, winner: isPlayer1 ? WINNER_PLAYER1 : WINNER_PLAYER2 });
+        }
+      }
+
       updatePlayerState({
         code: currentGameCode,
-        isPlayer1: role === PlayerRole.Player1,
+        isPlayer1,
         stateXbs: xbs,
-        ready: isWon,
+        ready: isWon && matchState === MatchState.WAITING,
       });
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentGameCode, role, updatePlayerState]);
-
-  const isJoined = useMemo(() => role === PlayerRole.Player2, [role]);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    currentGameCode,
+    isPlayer1,
+    matchState,
+    localLevelIndex,
+    levelIndices.length,
+    updatePlayerState,
+    claimWinner,
+  ]);
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
-    const input = joinCode.trim();
-    if (!input) return;
-    const game = games?.find(g => g.code.toUpperCase() === input.toUpperCase());
-    if (!game) return;
-    setRole(PlayerRole.Player2);
+    setJoinError(null);
+    const code = joinInput.trim();
+    if (!code || code.length !== CODE_LENGTH) {
+      setJoinError('Enter a valid game code');
+      return;
+    }
+    const game = games?.find(g => String(g.code).toUpperCase() === code.toUpperCase());
+    if (!game) {
+      setJoinError('Game not found. Is the host connected?');
+      return;
+    }
     setJoinedGameCode(game.code);
+    joinInputRef.current?.blur();
+    gameAreaRef.current?.focus();
   };
 
   return (
@@ -151,53 +201,81 @@ function App() {
         <div style={{ marginBottom: '0.25rem', opacity: 0.8 }}>Your code</div>
         <div style={{ fontWeight: 'bold', letterSpacing: '0.2em', marginBottom: '1.5rem' }}>{playerCode}</div>
         <div style={{ marginBottom: '0.25rem', opacity: 0.8 }}>
-          {isJoined ? `Joined as ${PlayerRole.Player2}` : `Role: ${role}`}
+          {isPlayer1 ? `Role: ${PlayerRole.Player1}` : `Joined as ${PlayerRole.Player2}`}
         </div>
         <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <input
+            ref={joinInputRef}
             type="text"
-            value={joinCode}
-            onChange={e => setJoinCode(e.target.value)}
+            value={joinInput}
+            onChange={e => setJoinInput(e.target.value)}
             placeholder="Enter code"
             maxLength={8}
-            disabled={isJoined}
+            disabled={!isPlayer1}
             style={{
               padding: '0.5rem',
               fontSize: '1rem',
-              backgroundColor: isJoined ? '#6b6358' : '#e8e0d5',
+              backgroundColor: isPlayer1 ? '#e8e0d5' : '#6b6358',
               color: '#2d231a',
               border: '1px solid #8b7355',
               borderRadius: '4px',
-              cursor: isJoined ? 'not-allowed' : undefined,
-              opacity: isJoined ? 0.7 : 1,
+              cursor: isPlayer1 ? undefined : 'not-allowed',
+              opacity: isPlayer1 ? 1 : 0.7,
             }}
           />
           <button
             type="submit"
-            disabled={isJoined}
+            disabled={!isPlayer1}
             style={{
               padding: '0.5rem 1rem',
               fontSize: '1rem',
-              backgroundColor: isJoined ? '#6b6358' : '#8b7355',
+              backgroundColor: isPlayer1 ? '#8b7355' : '#6b6358',
               color: '#e8e0d5',
               border: 'none',
               borderRadius: '4px',
-              cursor: isJoined ? 'not-allowed' : 'pointer',
-              opacity: isJoined ? 0.7 : 1,
+              cursor: isPlayer1 ? 'pointer' : 'not-allowed',
+              opacity: isPlayer1 ? 1 : 0.7,
             }}
           >
             Join
           </button>
+          {joinError && (
+            <div style={{ color: '#c95c5c', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+              {joinError}
+            </div>
+          )}
         </form>
       </div>
       <div
+        ref={gameAreaRef}
+        tabIndex={0}
         style={{
           flex: 1,
           display: 'flex',
+          flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
+          gap: '2rem',
+          outline: 'none',
         }}
       >
+        {winner !== 0 && (
+          <div
+            style={{
+              padding: '1rem 2rem',
+              backgroundColor: '#8b7355',
+              color: '#e8e0d5',
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              borderRadius: '8px',
+            }}
+          >
+            {winner === (isPlayer1 ? WINNER_PLAYER1 : WINNER_PLAYER2)
+              ? 'You won!'
+              : 'Opponent won!'}
+          </div>
+        )}
         <div
           style={{
             display: 'flex',
@@ -207,7 +285,7 @@ function App() {
           }}
         >
           <XBSView xbs={playerXBS} />
-          <XBSView xbs={opponentXBS} scale={0.25} />
+          <XBSView xbs={opponentXBS} scale={0.40} />
         </div>
       </div>
     </div>

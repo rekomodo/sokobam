@@ -9,14 +9,12 @@ const spacetimedb = schema({
     {
       code: t.string().primaryKey(),
       player1State: t.string(),
-      player1LevelIndex: t.i16(),
       player1Ready: t.bool(),
-
       player2State: t.string(),
-      player2LevelIndex: t.i16(),
       player2Ready: t.bool(),
-
+      started: t.bool(),
       levelIndices: t.array(t.i16()),
+      winner: t.u8(),
     }
   ),
 });
@@ -33,9 +31,11 @@ const DEFAULT_PUZZLE = [
   '#######',
 ].join('\n');
 
-const DEFAULT_LEVEL_INDEX = -1;
 const DEFAULT_LEVEL_INDICES: number[] = [];
-const TESTING_LEVEL_INDICES: number[] = [0, 1, 2];
+
+function getLevels(n: number): number[] {
+  return Array.from({ length: n }, (_, i) => i);
+}
 
 /** Call this with the client's game code when they connect to create the game row. */
 export const register_game_code = spacetimedb.reducer({ code: t.string() }, (ctx, { code }) => {
@@ -44,12 +44,12 @@ export const register_game_code = spacetimedb.reducer({ code: t.string() }, (ctx
   ctx.db.game.insert({
     code,
     player1State: DEFAULT_PUZZLE,
-    player1LevelIndex: DEFAULT_LEVEL_INDEX,
     player1Ready: false,
     player2State: DEFAULT_PUZZLE,
-    player2LevelIndex: DEFAULT_LEVEL_INDEX,
     player2Ready: false,
+    started: false,
     levelIndices: DEFAULT_LEVEL_INDICES,
+    winner: 0,
   });
 });
 
@@ -64,10 +64,29 @@ export const update_player_state = spacetimedb.reducer(
   (ctx, { code, isPlayer1, stateXbs, ready }) => {
     const game = ctx.db.game.code.find(code);
     if (!game) return;
-    if (isPlayer1) {
-      ctx.db.game.code.update({ ...game, player1State: stateXbs, player1Ready: ready });
-    } else {
-      ctx.db.game.code.update({ ...game, player2State: stateXbs, player2Ready: ready });
+    if (!game.started) {
+      if (isPlayer1) {
+        ctx.db.game.code.update({ ...game, player1State: stateXbs, player1Ready: ready });
+      } else {
+        ctx.db.game.code.update({ ...game, player2State: stateXbs, player2Ready: ready });
+      }
     }
+    const updated = ctx.db.game.code.find(code);
+    if (updated && updated.player1Ready && updated.player2Ready) {
+      ctx.db.game.code.update({ ...updated, started: true, levelIndices: getLevels(3) });
+    }
+  }
+);
+
+export const claim_winner = spacetimedb.reducer(
+  {
+    code: t.string(),
+    winner: t.u8(),
+  },
+  (ctx, { code, winner }) => {
+    const game = ctx.db.game.code.find(code);
+    if (!game) return;
+    if (game.winner !== 0) return;
+    ctx.db.game.code.update({ ...game, winner });
   }
 );

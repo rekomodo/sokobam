@@ -2,6 +2,8 @@
  * Sokoban ADT: game state, player position, tryMove, undo, getState (XBS format).
  */
 
+import { XBS } from './xbs';
+
 export enum Direction {
   Left,
   Right,
@@ -10,7 +12,7 @@ export enum Direction {
 }
 
 /** Static cell: wall, floor, or goal. */
-export type StaticCell = '#' | ' ' | '.';
+export type StaticCell = (typeof XBS.WALL) | (typeof XBS.FLOOR) | (typeof XBS.GOAL);
 
 /**
  * Internal representation: static grid (walls/floors/goals), player position,
@@ -45,7 +47,7 @@ export class Sokoban {
 
   private isWall(r: number, c: number): boolean {
     if (r < 0 || r >= this.height || c < 0 || c >= this.width) return true;
-    return this.staticGrid[r][c] === '#';
+    return this.staticGrid[r][c] === XBS.WALL;
   }
 
   private hasBox(r: number, c: number): boolean {
@@ -91,19 +93,20 @@ export class Sokoban {
     return true;
   }
 
-  /** Undo the last successful move. No-op if there is nothing to undo. */
-  undo(): void {
+  /** Undo the last successful move. Returns true iff something was undone. */
+  undo(): boolean {
     const prev = this.history.pop();
-    if (!prev) return;
+    if (!prev) return false;
     this.player = prev.player;
     this.boxes = new Set(prev.boxes);
+    return true;
   }
 
   /** Check whether every goal has a box on it. */
   private isSolved(): boolean {
     for (let r = 0; r < this.height; r++) {
       for (let c = 0; c < this.width; c++) {
-        if (this.staticGrid[r][c] === '.' && !this.boxes.has(this.cellKey(r, c))) return false;
+        if (this.staticGrid[r][c] === XBS.GOAL && !this.boxes.has(this.cellKey(r, c))) return false;
       }
     }
     return true;
@@ -112,7 +115,6 @@ export class Sokoban {
   /**
    * Returns [xbsString, isWon].
    * XBS: one character per cell, rows newline-separated.
-   * # wall, space floor, . goal, $ box, * box on goal, @ player, + player on goal.
    */
   getState(): [string, boolean] {
     const rows: string[] = [];
@@ -121,9 +123,9 @@ export class Sokoban {
       for (let c = 0; c < this.width; c++) {
         const isPlayer = this.player.r === r && this.player.c === c;
         const hasBox = this.boxes.has(this.cellKey(r, c));
-        const goal = this.staticGrid[r][c] === '.';
-        if (isPlayer) row += goal ? '+' : '@';
-        else if (hasBox) row += goal ? '*' : '$';
+        const goal = this.staticGrid[r][c] === XBS.GOAL;
+        if (isPlayer) row += goal ? XBS.PLAYER_ON_GOAL : XBS.PLAYER;
+        else if (hasBox) row += goal ? XBS.BOX_ON_GOAL : XBS.BOX;
         else row += this.staticGrid[r][c];
       }
       rows.push(row);

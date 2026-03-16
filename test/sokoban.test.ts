@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Sokoban, Direction, StaticCell } from '../src/sokoban';
+import { parseXBS } from '../src/parser';
 
 /** Minimal level: 4-wide room, player at (1,1), box at (1,2), goal at (1,3). Not won. */
 function makeSimpleLevel(): Sokoban {
@@ -32,6 +33,45 @@ describe('Sokoban', () => {
       const game = new Sokoban(grid, { r: 1, c: 1 }, [{ r: 1, c: 2 }]);
       const [, won] = game.getState();
       expect(won).toBe(true);
+    });
+
+    it('getState after tryMove(dir) returns true yields XBS with player moved in that direction', () => {
+      const initialXBS = '#####\n#   #\n# @ #\n#   #\n#####';
+      const expectedAfter: Record<Direction, string> = {
+        [Direction.Left]: '#####\n#   #\n#@  #\n#   #\n#####',
+        [Direction.Right]: '#####\n#   #\n#  @#\n#   #\n#####',
+        [Direction.Up]: '#####\n# @ #\n#   #\n#   #\n#####',
+        [Direction.Down]: '#####\n#   #\n#   #\n# @ #\n#####',
+      };
+      for (const dir of [Direction.Left, Direction.Right, Direction.Up, Direction.Down]) {
+        const game = parseXBS(initialXBS);
+        const ok = game.tryMove(dir);
+        expect(ok).toBe(true);
+        const [xbs] = game.getState();
+        expect(xbs).toEqual(expectedAfter[dir]);
+      }
+    });
+
+    it('getState after tryMove(dir) pushing a box returns true yields XBS with player and box moved in that direction', () => {
+      const initialByDir: Record<Direction, string> = {
+        [Direction.Left]: '######\n#  $@#\n######',
+        [Direction.Right]: '######\n#@$  #\n######',
+        [Direction.Up]: '######\n#    #\n#  $ #\n#  @ #\n######',
+        [Direction.Down]: '######\n#  @ #\n#  $ #\n#    #\n######',
+      };
+      const expectedAfter: Record<Direction, string> = {
+        [Direction.Left]: '######\n# $@ #\n######',
+        [Direction.Right]: '######\n# @$ #\n######',
+        [Direction.Up]: '######\n#  $ #\n#  @ #\n#    #\n######',
+        [Direction.Down]: '######\n#    #\n#  @ #\n#  $ #\n######',
+      };
+      for (const dir of [Direction.Left, Direction.Right, Direction.Up, Direction.Down]) {
+        const game = parseXBS(initialByDir[dir]);
+        const ok = game.tryMove(dir);
+        expect(ok).toBe(true);
+        const [xbs] = game.getState();
+        expect(xbs).toEqual(expectedAfter[dir]);
+      }
     });
   });
 

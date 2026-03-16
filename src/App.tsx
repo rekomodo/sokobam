@@ -18,11 +18,54 @@ const DEFAULT_PUZZLE = [
   '#######',
 ].join('\n');
 
-/** Level puzzles; index matches levelIndices. parseSokFile expects file content, not a path. */
+const styles = {
+  root: {
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'row' as const,
+    alignItems: 'center',
+    backgroundColor: '#2d231a',
+  },
+  sidebar: {
+    position: 'absolute' as const,
+    left: '2rem',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: '#e8e0d5',
+    fontFamily: 'ui-monospace, monospace',
+    fontSize: '1.25rem',
+  },
+  gameArea: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '2rem',
+    outline: 'none',
+  },
+  boardsRow: {
+    display: 'flex',
+    flexDirection: 'row' as const,
+    alignItems: 'center',
+    gap: '2rem',
+  },
+  winnerBanner: {
+    padding: '1rem 2rem',
+    backgroundColor: '#8b7355',
+    color: '#e8e0d5',
+    fontFamily: 'ui-monospace, monospace',
+    fontSize: '1.5rem',
+    fontWeight: 'bold' as const,
+    borderRadius: '8px',
+  },
+} as const;
+
+/** Level puzzles; index matches levelIndices. */
 const LEVEL_PUZZLES = parseSokFile(microbanSok);
-// const LEVEL_PUZZLES = [DEFAULT_PUZZLE, DEFAULT_PUZZLE, DEFAULT_PUZZLE];
+
 function getLevelPuzzle(levelIndex: number): string {
-  return LEVEL_PUZZLES[levelIndex];
+  return LEVEL_PUZZLES[levelIndex] ?? DEFAULT_PUZZLE;
 }
 
 const ARROW_DIR: Record<string, Direction> = {
@@ -96,8 +139,6 @@ function App() {
         ? getLevelPuzzle(levelIndices[localLevelIndex] ?? 0)
         : (isPlayer1 ? currentGame?.player1State : currentGame?.player2State) ?? DEFAULT_PUZZLE;
     playerSokobanRef.current = parseXBS(initial);
-    // Only re-init when initKey changes (new level or WAITING↔PLAYING). Don't re-run on
-    // server state updates or we wipe undo history every move.
   }, [initKey]);
 
   const [playerXBS, setPlayerXBS] = useState(() => playerSokobanRef.current.getState()[0]);
@@ -121,8 +162,8 @@ function App() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!currentGameCode) return;
       const isUndo = e.key.toLowerCase() === UNDO_KEY;
-      if (!isUndo && !e.key.includes('Arrow')) return;
       const dir = ARROW_DIR[e.key];
+      if (!isUndo && dir === undefined) return;
 
       e.preventDefault();
       const sokoban = playerSokobanRef.current;
@@ -178,26 +219,8 @@ function App() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#2d231a',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          left: '2rem',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          color: '#e8e0d5',
-          fontFamily: 'ui-monospace, monospace',
-          fontSize: '1.25rem',
-        }}
-      >
+    <div style={styles.root}>
+      <div style={styles.sidebar}>
         <div style={{ marginBottom: '0.25rem', opacity: 0.8 }}>Your code</div>
         <div style={{ fontWeight: 'bold', letterSpacing: '0.2em', marginBottom: '1.5rem' }}>{playerCode}</div>
         <div style={{ marginBottom: '0.25rem', opacity: 0.8 }}>
@@ -246,44 +269,15 @@ function App() {
           )}
         </form>
       </div>
-      <div
-        ref={gameAreaRef}
-        tabIndex={0}
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: '2rem',
-          outline: 'none',
-        }}
-      >
+      <div ref={gameAreaRef} tabIndex={0} style={styles.gameArea}>
         {winner !== 0 && (
-          <div
-            style={{
-              padding: '1rem 2rem',
-              backgroundColor: '#8b7355',
-              color: '#e8e0d5',
-              fontFamily: 'ui-monospace, monospace',
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              borderRadius: '8px',
-            }}
-          >
+          <div style={styles.winnerBanner}>
             {winner === (isPlayer1 ? WINNER_PLAYER1 : WINNER_PLAYER2)
               ? 'You won!'
               : 'Opponent won!'}
           </div>
         )}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: '2rem',
-          }}
-        >
+        <div style={styles.boardsRow}>
           <XBSView xbs={playerXBS} />
           <XBSView xbs={opponentXBS} scale={0.40} />
         </div>

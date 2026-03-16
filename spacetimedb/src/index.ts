@@ -64,13 +64,13 @@ export const update_player_state = spacetimedb.reducer(
   (ctx, { code, isPlayer1, stateXbs, ready }) => {
     const game = ctx.db.game.code.find(code);
     if (!game) return;
-    if (!game.started) {
-      if (isPlayer1) {
-        ctx.db.game.code.update({ ...game, player1State: stateXbs, player1Ready: ready });
-      } else {
-        ctx.db.game.code.update({ ...game, player2State: stateXbs, player2Ready: ready });
-      }
+
+    if (isPlayer1) {
+      ctx.db.game.code.update({ ...game, player1State: stateXbs, player1Ready: ready });
+    } else {
+      ctx.db.game.code.update({ ...game, player2State: stateXbs, player2Ready: ready });
     }
+
     const updated = ctx.db.game.code.find(code);
     if (updated && updated.player1Ready && updated.player2Ready) {
       ctx.db.game.code.update({ ...updated, started: true, levelIndices: getLevels(3) });

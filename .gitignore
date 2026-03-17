@@ -33,6 +33,3 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
-
-# Generated SpacetimeDB bindings (regenerate with: npm run spacetime:generate)
-src/module_bindings/

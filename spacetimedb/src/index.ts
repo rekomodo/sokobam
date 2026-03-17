@@ -53,6 +53,12 @@ export const register_game_code = spacetimedb.reducer({ code: t.string() }, (ctx
   });
 });
 
+/** Call when the host is closing the app to remove their game row. */
+export const deregister_game_code = spacetimedb.reducer({ code: t.string() }, (ctx, { code }) => {
+  const game = ctx.db.game.code.find(code);
+  if (game) ctx.db.game.code.delete(code);
+});
+
 /** Update the current player's state and ready flag for a game. */
 export const update_player_state = spacetimedb.reducer(
   {

@@ -101,6 +101,7 @@ function App() {
   const registerGameCode = useReducer(reducers.registerGameCode);
   const updatePlayerState = useReducer(reducers.updatePlayerState);
   const claimWinner = useReducer(reducers.claimWinner);
+  const deregisterGameCode = useReducer(reducers.deregisterGameCode);
   const [playerCode] = useState(generatePlayerCode);
   const [joinInput, setJoinInput] = useState('');
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -108,6 +109,27 @@ function App() {
   const [localLevelIndex, setLocalLevelIndex] = useState(0);
   const joinInputRef = useRef<HTMLInputElement>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (conn?.isActive) registerGameCode({ code: playerCode });
+  }, [conn?.isActive, playerCode, registerGameCode]);
+
+  const unloadRef = useRef<{
+    conn: ReturnType<typeof useSpacetimeDB>;
+    code: string;
+    deregister: typeof deregisterGameCode;
+    isHost: boolean;
+  } | null>(null);
+  unloadRef.current = { conn, code: playerCode, deregister: deregisterGameCode, isHost: joinedGameCode === null };
+
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      const u = unloadRef.current;
+      if (u?.isHost && u.code && u.conn?.isActive) u.deregister({ code: u.code });
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
 
   const currentGameCode = useMemo(() => joinedGameCode ?? playerCode, [joinedGameCode, playerCode]);
   const isPlayer1 = useMemo(() => joinedGameCode === null, [joinedGameCode]);
@@ -152,11 +174,7 @@ function App() {
 
   useEffect(() => {
     setPlayerXBS(playerSokobanRef.current.getState()[0]);
-  }, [initKey]);
-
-  useEffect(() => {
-    if (conn?.isActive) registerGameCode({ code: playerCode });
-  }, [conn?.isActive, playerCode, registerGameCode]);
+  }, [initKey]); 
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

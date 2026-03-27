@@ -11,28 +11,12 @@ import {
 } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from './module_bindings';
-import { parseSokFile, parseXBS } from './parser';
+import { parseXBS } from './parser';
 import { Direction } from './sokoban';
-import microbanSok from './puzzles/DavidWSkinner Microban.sok?raw';
+import { DEFAULT_PUZZLE, getLevelPuzzle } from './puzzles';
 
 const UNDO_KEY = 'q';
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const DEFAULT_PUZZLE = [
-  '#######',
-  '#     #',
-  '#     #',
-  '# @$ .#',
-  '#     #',
-  '#     #',
-  '#######',
-].join('\n');
-
-const LEVEL_PUZZLES = parseSokFile(microbanSok);
-
-function getLevelPuzzle(levelIndex: number): string {
-  return LEVEL_PUZZLES[levelIndex] ?? DEFAULT_PUZZLE;
-}
-
 const ARROW_DIR: Record<string, Direction> = {
   ArrowLeft: Direction.Left,
   ArrowRight: Direction.Right,
@@ -48,7 +32,7 @@ enum MatchState {
 export const WINNER_PLAYER1 = 1;
 export const WINNER_PLAYER2 = 2;
 
-export const CODE_LENGTH = 8;
+export const CODE_LENGTH = 5;
 
 function generatePlayerCode(): string {
   let code = '';

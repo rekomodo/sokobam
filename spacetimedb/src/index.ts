@@ -1,5 +1,17 @@
 import { schema, table, t } from 'spacetimedb/server';
 
+const DEFAULT_PUZZLE = [
+  '#######',
+  '#     #',
+  '#     #',
+  '# @$ .#',
+  '#     #',
+  '#     #',
+  '#######',
+].join('\n');
+
+const LEVEL_COUNT = 50; // HARDCODED FOR NOW
+
 const spacetimedb = schema({
   game: table(
     {
@@ -20,21 +32,26 @@ const spacetimedb = schema({
 });
 export default spacetimedb;
 
-/** 7×7 default puzzle: push the box right twice to solve. Must match client DEFAULT_PUZZLE. */
-const DEFAULT_PUZZLE = [
-  '#######',
-  '#     #',
-  '#     #',
-  '# @$ .#',
-  '#     #',
-  '#     #',
-  '#######',
-].join('\n');
+/** Deterministic level pick: partial Fisher–Yates */
+function pickDistinctIndices(n: number, levelCount: number, seed: bigint): number[] {
+  const indices = Array.from({ length: levelCount }, (_, i) => i);
+  let state = seed & 0xffffffffffffffffn;
+  const randInt = (minInclusive: number, maxExclusive: number): number => {
+    const span = maxExclusive - minInclusive;
+    state = (state * 6364136223846793005n + 1442695040888963407n) & 0xffffffffffffffffn;
+    return minInclusive + Number(state % BigInt(span));
+  };
+  for (let i = 0; i < n; i++) {
+    const j = randInt(i, levelCount);
+    const tmp = indices[i]!;
+    indices[i] = indices[j]!;
+    indices[j] = tmp;
+  }
+  return indices.slice(0, n);
+}
 
-const DEFAULT_LEVEL_INDICES: number[] = [];
-
-function getLevels(n: number): number[] {
-  return Array.from({ length: n }, (_, i) => i);
+function getLevels(n: number, microsSinceUnixEpoch: bigint): number[] {
+  return pickDistinctIndices(n, LEVEL_COUNT, microsSinceUnixEpoch);
 }
 
 /** Call this with the client's game code when they connect to create the game row. */
@@ -48,7 +65,7 @@ export const register_game_code = spacetimedb.reducer({ code: t.string() }, (ctx
     player2State: DEFAULT_PUZZLE,
     player2Ready: false,
     started: false,
-    levelIndices: DEFAULT_LEVEL_INDICES,
+    levelIndices: [],
     winner: 0,
   });
 });
@@ -79,7 +96,11 @@ export const update_player_state = spacetimedb.reducer(
 
     const updated = ctx.db.game.code.find(code);
     if (updated && updated.player1Ready && updated.player2Ready) {
-      ctx.db.game.code.update({ ...updated, started: true, levelIndices: getLevels(3) });
+      ctx.db.game.code.update({
+        ...updated,
+        started: true,
+        levelIndices: getLevels(3, ctx.timestamp.microsSinceUnixEpoch),
+      });
     }
   }
 );

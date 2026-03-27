@@ -1,6 +1,6 @@
 import { parseSokFile } from './parser';
 import microbanSok from './puzzles/DavidWSkinner Microban.sok?raw';
-import sasquatchISok from './puzzles/DavidWSkinner Sasquatch I.sok?raw';
+// import sasquatchISok from './puzzles/DavidWSkinner Sasquatch I.sok?raw';
 
 export const DEFAULT_PUZZLE = [
   '#######',

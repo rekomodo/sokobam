@@ -28,6 +28,8 @@ export class Sokoban {
   private boxes: Set<string>;
   /** History of (player, boxes) after each successful move for undo. */
   private readonly history: Array<{ player: { r: number; c: number }; boxes: Set<string> }> = [];
+  private readonly initialPlayer: { r: number; c: number };
+  private readonly initialBoxes: Set<string>;
 
   constructor(
     staticGrid: StaticCell[][],
@@ -39,6 +41,8 @@ export class Sokoban {
     this.staticGrid = staticGrid.map(row => [...row]);
     this.player = { ...initialPlayer };
     this.boxes = new Set(initialBoxes.map(b => `${b.r},${b.c}`));
+    this.initialPlayer = { ...initialPlayer };
+    this.initialBoxes = new Set(this.boxes);
   }
 
   private cellKey(r: number, c: number): string {
@@ -100,6 +104,13 @@ export class Sokoban {
     this.player = prev.player;
     this.boxes = new Set(prev.boxes);
     return true;
+  }
+
+  /** Reset the puzzle to its initial state, clearing all history. */
+  reset(): void {
+    this.player = { ...this.initialPlayer };
+    this.boxes = new Set(this.initialBoxes);
+    this.history.length = 0;
   }
 
   /** Check whether every goal has a box on it. */

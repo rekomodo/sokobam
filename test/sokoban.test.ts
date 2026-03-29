@@ -208,4 +208,48 @@ describe('Sokoban', () => {
       expect(afterUndo).toEqual(afterFirst);
     });
   });
+
+  describe('reset', () => {
+    it('restores the initial state after moves', () => {
+      const game = makeSimpleLevel();
+      const [initial] = game.getState();
+      game.tryMove(Direction.Right);
+      game.reset();
+      const [after] = game.getState();
+      expect(after).toEqual(initial);
+    });
+
+    it('clears undo history so undo is a no-op after reset', () => {
+      const game = makeSimpleLevel();
+      const [initial] = game.getState();
+      game.tryMove(Direction.Right);
+      game.reset();
+      game.undo();
+      const [after] = game.getState();
+      expect(after).toEqual(initial);
+    });
+
+    it('is idempotent when called on a fresh puzzle', () => {
+      const game = makeSimpleLevel();
+      const [before] = game.getState();
+      game.reset();
+      const [after] = game.getState();
+      expect(after).toEqual(before);
+    });
+
+    it('restores box positions after a push', () => {
+      const grid: StaticCell[][] = [
+        ['#', '#', '#', '#', '#'],
+        ['#', ' ', ' ', ' ', '.'],
+        ['#', '#', '#', '#', '#'],
+      ];
+      const game = new Sokoban(grid, { r: 1, c: 1 }, [{ r: 1, c: 2 }]);
+      const [initial] = game.getState();
+      game.tryMove(Direction.Right);
+      game.tryMove(Direction.Right);
+      game.reset();
+      const [after] = game.getState();
+      expect(after).toEqual(initial);
+    });
+  });
 });

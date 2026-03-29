@@ -16,6 +16,7 @@ import { Direction } from './sokoban';
 import { DEFAULT_PUZZLE, getLevelPuzzle } from './puzzles';
 
 const UNDO_KEY = 'q';
+const RESET_KEY = 'r';
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ARROW_DIR: Record<string, Direction> = {
   ArrowLeft: Direction.Left,
@@ -154,20 +155,32 @@ export function GameSessionProvider({ children }: { children: ReactNode }) {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!currentGameCode) return;
       const isUndo = e.key.toLowerCase() === UNDO_KEY;
+      const isReset = e.key.toLowerCase() === RESET_KEY;
       const dir = ARROW_DIR[e.key];
-      if (!isUndo && dir === undefined) return;
+      if (!isUndo && !isReset && dir === undefined) return;
 
       e.preventDefault();
       const sokoban = playerSokobanRef.current;
-      const didChange = isUndo ? sokoban.undo() : sokoban.tryMove(dir);
+
+      let didChange: boolean;
+      if (isReset) {
+        sokoban.reset();
+        didChange = true;
+      } else {
+        didChange = isUndo ? sokoban.undo() : sokoban.tryMove(dir);
+      }
 
       if (!didChange) return;
-      const [xbs, isWon] = sokoban.getState();
+
+      let result = sokoban.getState();
+      let xbs = result[0];
+      const isWon = result[1];
       setPlayerXBS(xbs);
 
       if (matchState === MatchState.PLAYING && isWon) {
         if (localLevelIndex + 1 < levelIndices.length) {
           setLocalLevelIndex(i => i + 1);
+          xbs = sokoban.getState()[0];
         } else {
           claimWinner({ code: currentGameCode, winner: isPlayer1 ? WINNER_PLAYER1 : WINNER_PLAYER2 });
         }

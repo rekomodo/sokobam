@@ -130,12 +130,24 @@ export function GameSessionProvider({ children }: { children: ReactNode }) {
       ? `${currentGameCode}-${localLevelIndex}`
       : `${currentGameCode}-w`;
 
+  // Change the puzzle when the level index changes
   useEffect(() => {
     const initial =
       matchState === MatchState.PLAYING
         ? getLevelPuzzle(levelIndices[localLevelIndex] ?? 0)
         : (isPlayer1 ? currentGame?.player1State : currentGame?.player2State) ?? DEFAULT_PUZZLE;
     playerSokobanRef.current = parseXBS(initial);
+
+    // Update the player state on the server as well
+    if (currentGameCode && matchState === MatchState.PLAYING) {
+      const xbs = playerSokobanRef.current.getState()[0];
+      updatePlayerState({
+        code: currentGameCode,
+        isPlayer1,
+        stateXbs: xbs,
+        ready: false,
+      });
+    }
   }, [initKey]);
 
   const [playerXBS, setPlayerXBS] = useState(() => playerSokobanRef.current.getState()[0]);

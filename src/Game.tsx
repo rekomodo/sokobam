@@ -15,8 +15,8 @@ import { parseXBS } from './parser';
 import { Direction } from './sokoban';
 import { DEFAULT_PUZZLE, getLevelPuzzle } from './puzzles';
 
-const UNDO_KEY = 'q';
-const RESET_KEY = 'r';
+export const UNDO_KEY = 'q';
+export const RESET_KEY = 'r';
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ARROW_DIR: Record<string, Direction> = {
   ArrowLeft: Direction.Left,
@@ -52,6 +52,7 @@ export type GameSessionValue = {
   currentGameCode: string;
   playerCode: string;
   isPlayer1: boolean;
+  joined: boolean;
   winner: number;
   joinInput: string;
   setJoinInput: (v: string) => void;
@@ -74,6 +75,7 @@ export function GameSessionProvider({ children }: { children: ReactNode }) {
   const conn = useSpacetimeDB();
   const [games] = useTable(tables.game);
   const registerGameCode = useReducer(reducers.registerGameCode);
+  const joinGame = useReducer(reducers.joinGame);
   const updatePlayerState = useReducer(reducers.updatePlayerState);
   const claimWinner = useReducer(reducers.claimWinner);
   const deregisterGameCode = useReducer(reducers.deregisterGameCode);
@@ -113,6 +115,7 @@ export function GameSessionProvider({ children }: { children: ReactNode }) {
     [games, currentGameCode]
   );
 
+  const joined = currentGame?.joined ?? false;
   const matchState = currentGame?.started ? MatchState.PLAYING : MatchState.WAITING;
   const levelIndices = currentGame?.levelIndices ?? [];
   const winner = currentGame?.winner ?? 0;
@@ -165,6 +168,8 @@ export function GameSessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (!currentGameCode) return;
       const isUndo = e.key.toLowerCase() === UNDO_KEY;
       const isReset = e.key.toLowerCase() === RESET_KEY;
@@ -231,11 +236,12 @@ export function GameSessionProvider({ children }: { children: ReactNode }) {
         setJoinError('Game not found. Is the host connected?');
         return;
       }
+      joinGame({ code: game.code });
       setJoinedGameCode(game.code);
       joinInputRef.current?.blur();
       gameAreaRef.current?.focus();
     },
-    [games, joinInput]
+    [games, joinInput, joinGame]
   );
 
   const value = useMemo<GameSessionValue>(
@@ -245,6 +251,7 @@ export function GameSessionProvider({ children }: { children: ReactNode }) {
       currentGameCode,
       playerCode,
       isPlayer1,
+      joined,
       winner,
       joinInput,
       setJoinInput,
@@ -260,6 +267,7 @@ export function GameSessionProvider({ children }: { children: ReactNode }) {
       currentGameCode,
       playerCode,
       isPlayer1,
+      joined,
       winner,
       joinInput,
       joinError,

@@ -12,6 +12,7 @@ import {
 
 export default __t.row({
   code: __t.string().primaryKey(),
+  joined: __t.bool(),
   player1State: __t.string().name("player_1_state"),
   player1Ready: __t.bool().name("player_1_ready"),
   player2State: __t.string().name("player_2_state"),

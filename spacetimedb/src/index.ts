@@ -20,6 +20,7 @@ const spacetimedb = schema({
     },
     {
       code: t.string().primaryKey(),
+      joined: t.bool(),
       player1State: t.string(),
       player1Ready: t.bool(),
       player2State: t.string(),
@@ -60,6 +61,7 @@ export const register_game_code = spacetimedb.reducer({ code: t.string() }, (ctx
   if (existing) return;
   ctx.db.game.insert({
     code,
+    joined: false,
     player1State: DEFAULT_PUZZLE,
     player1Ready: false,
     player2State: DEFAULT_PUZZLE,
@@ -74,6 +76,13 @@ export const register_game_code = spacetimedb.reducer({ code: t.string() }, (ctx
 export const deregister_game_code = spacetimedb.reducer({ code: t.string() }, (ctx, { code }) => {
   const game = ctx.db.game.code.find(code);
   if (game) ctx.db.game.code.delete(code);
+});
+
+/** Mark a game as joined by Player 2. */
+export const join_game = spacetimedb.reducer({ code: t.string() }, (ctx, { code }) => {
+  const game = ctx.db.game.code.find(code);
+  if (!game) return;
+  ctx.db.game.code.update({ ...game, joined: true });
 });
 
 /** Update the current player's state and ready flag for a game. */

@@ -8,11 +8,13 @@ import { type Infer as __Infer } from "spacetimedb";
 // Import all reducer arg schemas
 import ClaimWinnerReducer from "../claim_winner_reducer";
 import DeregisterGameCodeReducer from "../deregister_game_code_reducer";
+import JoinGameReducer from "../join_game_reducer";
 import RegisterGameCodeReducer from "../register_game_code_reducer";
 import UpdatePlayerStateReducer from "../update_player_state_reducer";
 
 export type ClaimWinnerParams = __Infer<typeof ClaimWinnerReducer>;
 export type DeregisterGameCodeParams = __Infer<typeof DeregisterGameCodeReducer>;
+export type JoinGameParams = __Infer<typeof JoinGameReducer>;
 export type RegisterGameCodeParams = __Infer<typeof RegisterGameCodeReducer>;
 export type UpdatePlayerStateParams = __Infer<typeof UpdatePlayerStateReducer>;
 
